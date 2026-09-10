@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+:root {
+  --color-ink: #1C2B2D;
+  --color-paper: #FAF8F3;
+  --color-teal: #0F4C4C;
+  --color-teal-deep: #0A3535;
+  --color-gold: #C8912A;
+  --color-gold-light: #E8B860;
+  --color-line: #E4DFD3;
+  --color-danger: #B3452E;
+  --color-success: #2F6D4F;
+
+  /* Elevation — warm-tinted shadows (not neutral gray) so cards feel like
+     part of this palette rather than a default Tailwind card. */
+  --shadow-sm: 0 1px 2px rgba(28, 43, 45, 0.06), 0 1px 1px rgba(28, 43, 45, 0.04);
+  --shadow-md: 0 4px 16px rgba(15, 76, 76, 0.08), 0 2px 6px rgba(28, 43, 45, 0.06);
+  --shadow-lg: 0 12px 32px rgba(15, 76, 76, 0.14), 0 4px 12px rgba(28, 43, 45, 0.08);
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-paper: var(--color-paper);
+  --color-teal: var(--color-teal);
+  --color-teal-deep: var(--color-teal-deep);
+  --color-gold: var(--color-gold);
+  --color-gold-light: var(--color-gold-light);
+  --color-line: var(--color-line);
+  --color-danger: var(--color-danger);
+  --color-success: var(--color-success);
+  --font-display: var(--font-sora);
+  --font-sans: var(--font-inter);
+  --font-ledger: var(--font-ibm-plex-mono);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-sora), Arial, Helvetica, sans-serif;
+}
+
+/* Signature treatment: every price, quantity, order number, and stat in the
+   system renders in tabular monospace. This is deliberate — the app is a
+   ledger at heart, and figures that line up and hold their width read as
+   "built for bookkeeping" rather than a generic marketing site. Apply this
+   class anywhere a number is the point (prices, totals, stock counts,
+   order numbers), never on prose. */
+.font-ledger {
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+
+.shadow-elev-sm { box-shadow: var(--shadow-sm); }
+.shadow-elev-md { box-shadow: var(--shadow-md); }
+.shadow-elev-lg { box-shadow: var(--shadow-lg); }
+
+/* Subtle woven texture, evoking kanga/kitenge border patterns without
+   depicting one literally — used sparingly on the storefront hero only. */
+.weave-texture {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(250, 248, 243, 0.06) 0px, rgba(250, 248, 243, 0.06) 1px, transparent 1px, transparent 12px),
+    repeating-linear-gradient(-45deg, rgba(250, 248, 243, 0.06) 0px, rgba(250, 248, 243, 0.06) 1px, transparent 1px, transparent 12px);
+}
+
+::selection {
+  background: var(--color-gold-light);
+  color: var(--color-ink);
+}
+
+/* Skeleton loading shimmer — used by <Skeleton /> in place of bare
+   "Loading..." text throughout the dashboard and storefront. */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--color-line) 25%, #EFEBDF 50%, var(--color-line) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* Print stylesheet for order receipts — hides app chrome, keeps only the
+   receipt content, so "Print" from the browser produces a clean handoff
+   slip rather than a screenshot of the dashboard. */
+@media print {
+  .no-print { display: none !important; }
+  .receipt-overlay {
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  .print-receipt {
+    box-shadow: none !important;
+    border: none !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+  }
+  body * { visibility: hidden; }
+  .receipt-overlay, .receipt-overlay * { visibility: visible; }
+  body { background: white !important; }
+}

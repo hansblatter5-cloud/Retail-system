@@ -1,0 +1,287 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OrderChannel {
+  ONLINE
+  IN_STORE
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum StockReason {
+  SALE
+  RESTOCK
+  ADJUSTMENT
+  RETURN
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String        @id @default(cuid())
+  name      String
+  email     String        @unique
+  password  String
+  role      Role          @default(STAFF)
+  status    AccountStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  ordersCreated     Order[]           @relation("OrderCreatedBy")
+  stockMovements    StockMovement[]
+  resetTokens       PasswordResetToken[]
+  reviewsModerated  Review[]
+  questionsAnswered ProductQuestion[]
+
+  @@map("users")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+
+  @@map("categories")
+}
+
+model Product {
+  id                String    @id @default(cuid())
+  name              String
+  description        String?
+  sku               String    @unique
+  price             Int       // stored in whole KSh
+  stock             Int       @default(0)
+  lowStockThreshold Int       @default(5)
+  imageUrl          String?
+  isActive          Boolean   @default(true)
+  categoryId        String?
+  category          Category? @relation(fields: [categoryId], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+  images         ProductImage[]
+  reviews        Review[]
+  questions      ProductQuestion[]
+
+  @@map("products")
+}
+
+// Product photo gallery. `Product.imageUrl` is kept as the primary/cover
+// image for backward compatibility with existing frontend code; `images`
+// holds the full gallery (imageUrl should always match sortOrder 0).
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("product_images")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+
+  orders    Order[]
+  reviews   Review[]
+  questions ProductQuestion[]
+
+  @@map("customers")
+}
+
+model Order {
+  id           String       @id @default(cuid())
+  orderNumber  String       @unique
+  customerId   String?
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+  channel      OrderChannel @default(ONLINE)
+  status       OrderStatus  @default(PENDING)
+  totalAmount  Int
+  notes        String?
+  createdById  String?
+  createdBy    User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  items          OrderItem[]
+  stockMovements StockMovement[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Int
+  subtotal  Int
+
+  @@map("order_items")
+}
+
+model StockMovement {
+  id        String      @id @default(cuid())
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+  change    Int         // negative for deductions, positive for restocks
+  reason    StockReason
+  orderId   String?
+  order     Order?      @relation(fields: [orderId], references: [id])
+  createdById String?
+  createdBy   User?      @relation(fields: [createdById], references: [id])
+  createdAt DateTime    @default(now())
+
+  @@map("stock_movements")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+// Customer product review — submitted publicly, held for staff moderation
+// before it appears on the storefront (mirrors the User AccountStatus
+// pattern). verifiedPurchase is computed at submission time by checking
+// whether this email has a delivered/completed order containing the product.
+model Review {
+  id               String           @id @default(cuid())
+  productId        String
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId       String?
+  customer         Customer?        @relation(fields: [customerId], references: [id])
+  authorName       String
+  authorEmail      String
+  rating           Int              // 1-5
+  title            String?
+  comment          String           @db.Text
+  photoUrls        String[]         @default([])
+  videoUrls        String[]         @default([])
+  verifiedPurchase Boolean          @default(false)
+  status           ModerationStatus @default(PENDING)
+  moderatedById    String?
+  moderatedBy      User?            @relation(fields: [moderatedById], references: [id])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("reviews")
+}
+
+// Customer Q&A on a product listing. Answer fields stay null until a staff
+// member answers; only answered questions are shown publicly.
+model ProductQuestion {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  authorName   String
+  authorEmail  String
+  question     String    @db.Text
+  answer       String?   @db.Text
+  answeredById String?
+  answeredBy   User?     @relation(fields: [answeredById], references: [id])
+  answeredAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@map("product_questions")
+}
+
+// Single editable row: storefront contact/social/location info, plus the
+// storewide return policy shown alongside product pages. Always fetched by
+// the fixed id "store" — created once via seed, edited via the admin.
+model StoreSettings {
+  id              String   @id @default("store")
+  ownerName       String
+  contactEmail    String
+  whatsappNumber  String
+  socialHandle    String // e.g. "@daniels_store", shared across platforms
+  facebookUrl     String?
+  instagramUrl    String?
+  xUrl            String?
+  tiktokUrl       String?
+  whatsappUrl     String?
+  locationName    String // e.g. "Nairobi, SIMARA Mall, 2nd Floor"
+  returnPolicy    String   @db.Text
+  updatedAt       DateTime @updatedAt
+
+  @@map("store_settings")
+}
+
+// Flat-rate delivery zones used by the shipping calculator + delivery
+// estimate shown on product/checkout pages. Editable by OWNER via admin.
+model ShippingZone {
+  id                String   @id @default(cuid())
+  name              String   @unique // e.g. "Nairobi CBD", "Nairobi Metro", "Rest of Kenya"
+  rate              Int      // flat shipping cost, whole KSh
+  freeOverAmount    Int?     // order subtotal (KSh) above which shipping is free for this zone
+  estDeliveryDaysMin Int
+  estDeliveryDaysMax Int
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("shipping_zones")
+}
+
+// Tracks sensitive administrative actions (staff approval/rejection, role
+// changes, product deactivation) so there's a record of who did what and
+// when — separate from the StockMovement ledger, which only covers inventory.
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // e.g. "USER_APPROVED", "USER_ROLE_CHANGED", "PRODUCT_DEACTIVATED"
+  actorId     String?  // the staff member who performed the action
+  targetType  String   // e.g. "User", "Product"
+  targetId    String
+  metadata    Json?    // free-form details (old/new role, reason, etc.)
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
